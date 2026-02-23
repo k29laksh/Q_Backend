@@ -12,7 +12,12 @@ import {
 } from '@nestjs/common';
 import { type Response } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, SignupStep1Dto, SignupStep2Dto } from './dto/auth.dto';
+import {
+  SendOtpDto,
+  SignupStep1Dto,
+  SignupStep2Dto,
+  VerifyOtpDto,
+} from './dto/auth.dto';
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
@@ -54,13 +59,19 @@ export class AuthController {
     return this.authService.getDraftStatus(email);
   }
 
-  @Post('login')
+  @Post('login/send-otp')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Body() dto: LoginDto,
+  async sendOtp(@Body() dto: SendOtpDto) {
+    return this.authService.sendOtp(dto);
+  }
+
+  @Post('login/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyOtp(
+    @Body() dto: VerifyOtpDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(dto);
+    const result = await this.authService.verifyOtp(dto);
     this.setRefreshTokenCookie(res, result.refreshToken);
     return {
       user: result.user,

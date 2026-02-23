@@ -3,8 +3,8 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Length,
   Matches,
-  MinLength,
 } from 'class-validator';
 
 export class SignupStep1Dto {
@@ -19,11 +19,6 @@ export class SignupStep1Dto {
   @IsString()
   @IsNotEmpty()
   phoneNumber: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MinLength(6)
-  password: string;
 }
 
 export class SignupStep2Dto {
@@ -51,12 +46,19 @@ export class SignupStep2Dto {
   address?: string;
 }
 
-export class LoginDto {
+export class SendOtpDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+}
+
+export class VerifyOtpDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
 
   @IsString()
   @IsNotEmpty()
-  password: string;
+  @Length(6, 6, { message: 'OTP must be 6 digits' })
+  otp: string;
 }

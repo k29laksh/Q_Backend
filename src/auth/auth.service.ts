@@ -8,13 +8,20 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../entity/user.entity';
 import { Company } from '../entity/company.entity';
 import { OnboardingDraft } from '../entity/onboarding.entity';
-import { SignupStep1Dto, SignupStep2Dto, LoginDto } from './dto/auth.dto';
+import { OtpCode } from '../entity/otp.entity';
+import {
+  SignupStep1Dto,
+  SignupStep2Dto,
+  SendOtpDto,
+  VerifyOtpDto,
+} from './dto/auth.dto';
 import { ConfigService } from '@nestjs/config';
+import { EmailService } from './email.service';
 
 @Injectable()
 export class AuthService {
@@ -25,9 +32,12 @@ export class AuthService {
     private readonly companyRepository: Repository<Company>,
     @InjectRepository(OnboardingDraft)
     private readonly onboardingDraftRepository: Repository<OnboardingDraft>,
+    @InjectRepository(OtpCode)
+    private readonly otpRepository: Repository<OtpCode>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly emailService: EmailService,
   ) {}
 
   // ─── Signup Step 1: Save personal details to draft ────────
@@ -53,22 +63,17 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-
     const formData = {
       fullName: dto.fullName,
       email: dto.email,
       phoneNumber: dto.phoneNumber,
-      password: hashedPassword,
     };
 
     if (draft) {
-      // Update existing draft
       draft.formData = { ...draft.formData, ...formData };
       draft.currentStep = 1;
       draft.status = 'IN_PROGRESS';
     } else {
-      // Create new draft
       draft = this.onboardingDraftRepository.create({
         email: dto.email,
         formData,
@@ -89,7 +94,6 @@ export class AuthService {
 
   // ─── Signup Step 2: Save business details + create User & Company ─
   async signupStep2(dto: SignupStep2Dto) {
-    // Find the draft from step 1
     const draft = await this.onboardingDraftRepository.findOne({
       where: { email: dto.email },
     });
@@ -106,9 +110,9 @@ export class AuthService {
       );
     }
 
-    const { fullName, email, phoneNumber, password } = draft.formData;
+    const { fullName, email, phoneNumber } = draft.formData;
 
-    if (!fullName || !email || !phoneNumber || !password) {
+    if (!fullName || !email || !phoneNumber) {
       throw new BadRequestException(
         'Incomplete step 1 data. Please complete step 1 first.',
       );
@@ -144,16 +148,13 @@ export class AuthService {
     await queryRunner.startTransaction();
 
     try {
-      // Create User
       const user = queryRunner.manager.create(User, {
         fullName,
         email,
-        password, // already hashed in step 1
         mobile: phoneNumber,
       });
       const savedUser = await queryRunner.manager.save(user);
 
-      // Create Company
       const company = queryRunner.manager.create(Company, {
         legalName: dto.legalName,
         pan: dto.pan,
@@ -163,7 +164,6 @@ export class AuthService {
       });
       const savedCompany = await queryRunner.manager.save(company);
 
-      // Mark draft as submitted
       draft.formData = {
         ...draft.formData,
         pan: dto.pan,
@@ -190,7 +190,6 @@ export class AuthService {
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      // Handle unique constraint violations from DB race conditions
       if (error?.code === '23505') {
         const detail: string = error.detail || '';
         if (detail.includes('email')) {
@@ -210,8 +209,55 @@ export class AuthService {
     }
   }
 
-  // ─── Login ─────────────────────────────────────────────────
-  async login(dto: LoginDto) {
+  // ─── Send OTP (for login) ─────────────────────────────────
+  async sendOtp(dto: SendOtpDto) {
+    const user = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (!user) {
+      throw new NotFoundException('No account found with this email');
+    }
+
+    // Rate limit: check if an unexpired OTP was sent in the last 60 seconds
+    const recentOtp = await this.otpRepository.findOne({
+      where: {
+        email: dto.email,
+        isUsed: false,
+        expiresAt: MoreThan(new Date(Date.now() + 4 * 60 * 1000)), // created < 60s ago (5min - 4min = 1min)
+      },
+    });
+    if (recentOtp) {
+      throw new BadRequestException(
+        'OTP already sent. Please wait before requesting a new one.',
+      );
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Invalidate any existing unused OTPs for this email
+    await this.otpRepository.update(
+      { email: dto.email, isUsed: false },
+      { isUsed: true },
+    );
+
+    // Save new OTP
+    const otpRecord = this.otpRepository.create({
+      email: dto.email,
+      otpHash,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+    });
+    await this.otpRepository.save(otpRecord);
+
+    // Send email via Mailtrap sandbox
+    await this.emailService.sendOtpEmail(dto.email, otp);
+
+    return { message: 'OTP sent to your email' };
+  }
+
+  // ─── Verify OTP (login) ───────────────────────────────────
+  async verifyOtp(dto: VerifyOtpDto) {
     const user = await this.userRepository.findOne({
       where: { email: dto.email },
     });
@@ -219,11 +265,42 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordMatches = await bcrypt.compare(dto.password, user.password);
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid credentials');
+    // Find the latest unused, unexpired OTP for this email
+    const otpRecord = await this.otpRepository.findOne({
+      where: {
+        email: dto.email,
+        isUsed: false,
+        expiresAt: MoreThan(new Date()),
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!otpRecord) {
+      throw new UnauthorizedException('OTP expired or not found. Request a new one.');
     }
 
+    // Check max attempts (5)
+    if (otpRecord.attempts >= 5) {
+      otpRecord.isUsed = true;
+      await this.otpRepository.save(otpRecord);
+      throw new UnauthorizedException(
+        'Too many failed attempts. Request a new OTP.',
+      );
+    }
+
+    // Verify OTP hash
+    const isValid = await bcrypt.compare(dto.otp, otpRecord.otpHash);
+    if (!isValid) {
+      otpRecord.attempts += 1;
+      await this.otpRepository.save(otpRecord);
+      throw new UnauthorizedException('Invalid OTP');
+    }
+
+    // Mark OTP as used
+    otpRecord.isUsed = true;
+    await this.otpRepository.save(otpRecord);
+
+    // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
 
@@ -290,7 +367,6 @@ export class AuthService {
         fullName: draft.formData.fullName,
         email: draft.formData.email,
         phoneNumber: draft.formData.phoneNumber,
-        // Never expose password hash
       },
     };
   }
@@ -319,7 +395,7 @@ export class AuthService {
   }
 
   private sanitizeUser(user: User) {
-    const { password, hashedRefreshToken, ...result } = user;
+    const { hashedRefreshToken, ...result } = user;
     return result;
   }
 }

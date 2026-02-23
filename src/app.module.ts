@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { User } from './entity/user.entity';
 import { Company } from './entity/company.entity';
 import { OnboardingDraft } from './entity/onboarding.entity';
+import { OtpCode } from './entity/otp.entity';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { OnboardingDraft } from './entity/onboarding.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
-      entities: [User, Company, OnboardingDraft],
+      entities: [User, Company, OnboardingDraft, OtpCode],
       synchronize: true, // Set to false in production!
     }),
     AuthModule,

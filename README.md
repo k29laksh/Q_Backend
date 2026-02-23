@@ -36,7 +36,6 @@ POST /auth/signup/step1
 | fullName    | string | Yes      | Full name of the user  |
 | email       | string | Yes      | Email address          |
 | phoneNumber | string | Yes      | Phone number           |
-| password    | string | Yes      | Password (min 6 chars) |
 
 **Example Request**
 
@@ -44,8 +43,7 @@ POST /auth/signup/step1
 {
   "fullName": "John Doe",
   "email": "user@example.com",
-  "phoneNumber": "9876543210",
-  "password": "StrongP@ss1"
+  "phoneNumber": "9876543210"
 }
 ```
 
@@ -64,7 +62,7 @@ POST /auth/signup/step1
 
 | Status | Description              |
 | ------ | ------------------------ |
-| 409    | Email already registered |
+| 409    | Email or phone number already registered |
 
 ---
 
@@ -167,27 +165,66 @@ GET /auth/signup/status?email=user@example.com
 
 ---
 
-### 4. Login
+### 4. Send OTP (Login Step 1)
 
-Authenticates user. Returns access token in body and sets refresh token as httpOnly cookie.
+Sends a 6-digit OTP to the user's registered email via Mailtrap sandbox. OTP expires in 5 minutes.
 
 ```
-POST /auth/login
+POST /auth/login/send-otp
 ```
 
 **Request Body**
 
-| Field    | Type   | Required | Description   |
-| -------- | ------ | -------- | ------------- |
-| email    | string | Yes      | Email address |
-| password | string | Yes      | User password |
+| Field | Type   | Required | Description              |
+| ----- | ------ | -------- | ------------------------ |
+| email | string | Yes      | Registered email address |
+
+**Example Request**
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Success Response** `200 OK`
+
+```json
+{
+  "message": "OTP sent to your email"
+}
+```
+
+**Error Responses**
+
+| Status | Description                                      |
+| ------ | ------------------------------------------------ |
+| 400    | OTP already sent — wait before requesting again  |
+| 404    | No account found with this email                 |
+
+---
+
+### 5. Verify OTP (Login Step 2)
+
+Verifies the OTP and issues tokens. Access token in body, refresh token as httpOnly cookie.
+
+```
+POST /auth/login/verify-otp
+```
+
+**Request Body**
+
+| Field | Type   | Required | Description          |
+| ----- | ------ | -------- | -------------------- |
+| email | string | Yes      | Registered email     |
+| otp   | string | Yes      | 6-digit OTP from email |
 
 **Example Request**
 
 ```json
 {
   "email": "user@example.com",
-  "password": "StrongP@ss1"
+  "otp": "482913"
 }
 ```
 
@@ -209,13 +246,13 @@ POST /auth/login
 
 **Error Responses**
 
-| Status | Description         |
-| ------ | ------------------- |
-| 401    | Invalid credentials |
+| Status | Description                                  |
+| ------ | -------------------------------------------- |
+| 401    | Invalid OTP / OTP expired / Too many attempts |
 
 ---
 
-### 5. Refresh Access Token
+### 6. Refresh Access Token
 
 Issues a new access token using the refresh token from the httpOnly cookie.
 
@@ -245,7 +282,7 @@ POST /auth/refresh
 
 ---
 
-### 6. Logout
+### 7. Logout
 
 Invalidates the refresh token and clears the cookie.
 
@@ -273,7 +310,7 @@ POST /auth/logout
 
 ---
 
-### 7. Get Profile
+### 8. Get Profile
 
 Returns the authenticated user's profile with company details.
 
@@ -312,16 +349,21 @@ GET /auth/profile
 
 ## Environment Variables
 
-| Variable           | Description                       |
-| ------------------ | --------------------------------- |
-| PORT               | Server port (default: 3000)       |
-| DB_HOST            | PostgreSQL host                   |
-| DB_PORT            | PostgreSQL port                   |
-| DB_USERNAME        | Database username                 |
-| DB_PASSWORD        | Database password                 |
-| DB_NAME            | Database name                     |
-| JWT_ACCESS_SECRET  | Secret for signing access tokens  |
-| JWT_REFRESH_SECRET | Secret for signing refresh tokens |
+| Variable                    | Description                       |
+| --------------------------- | --------------------------------- |
+| PORT                        | Server port (default: 3000)       |
+| DB_HOST                     | PostgreSQL host                   |
+| DB_PORT                     | PostgreSQL port                   |
+| DB_USERNAME                 | Database username                 |
+| DB_PASSWORD                 | Database password                 |
+| DB_DATABASE                 | Database name                     |
+| JWT_ACCESS_SECRET           | Secret for signing access tokens  |
+| JWT_REFRESH_SECRET          | Secret for signing refresh tokens |
+| COMMON_SMTP_EMAIL_SMTP_HOST | SMTP host (Mailtrap sandbox)      |
+| COMMON_SMTP_EMAIL_SMTP_PORT | SMTP port (587)                   |
+| COMMON_SMTP_EMAIL_USERNAME  | SMTP username                     |
+| COMMON_SMTP_EMAIL_PASSWORD  | SMTP password                     |
+| COMMON_EMAIL_FROM           | Sender email address              |
 
 ## Running the App
 
