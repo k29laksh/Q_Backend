@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { type Response } from 'express';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
   SendOtpDto,
@@ -21,6 +22,7 @@ import {
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -44,27 +46,33 @@ export class AuthController {
     });
   }
 
+  @ApiOperation({ summary: 'Signup Step 1 - Basic user details' })
   @Post('signup/step1')
   async signupStep1(@Body() dto: SignupStep1Dto) {
     return this.authService.signupStep1(dto);
   }
 
+  @ApiOperation({ summary: 'Signup Step 2 - Company/business details' })
   @Post('signup/step2')
   async signupStep2(@Body() dto: SignupStep2Dto) {
     return this.authService.signupStep2(dto);
   }
 
+  @ApiOperation({ summary: 'Get signup draft status by email' })
+  @ApiQuery({ name: 'email', type: String, description: 'User email' })
   @Get('signup/status')
   async getDraftStatus(@Query('email') email: string) {
     return this.authService.getDraftStatus(email);
   }
 
+  @ApiOperation({ summary: 'Send OTP to email for login' })
   @Post('login/send-otp')
   @HttpCode(HttpStatus.OK)
   async sendOtp(@Body() dto: SendOtpDto) {
     return this.authService.sendOtp(dto);
   }
 
+  @ApiOperation({ summary: 'Verify OTP and login' })
   @Post('login/verify-otp')
   @HttpCode(HttpStatus.OK)
   async verifyOtp(
@@ -79,6 +87,7 @@ export class AuthController {
     };
   }
 
+  @ApiOperation({ summary: 'Refresh access token' })
   @Post('refresh')
   @UseGuards(RefreshTokenGuard)
   @HttpCode(HttpStatus.OK)
@@ -93,6 +102,8 @@ export class AuthController {
     return { accessToken: tokens.accessToken };
   }
 
+  @ApiOperation({ summary: 'Logout user' })
+  @ApiBearerAuth()
   @Post('logout')
   @UseGuards(AccessTokenGuard)
   @HttpCode(HttpStatus.OK)
@@ -101,6 +112,8 @@ export class AuthController {
     return this.authService.logout(req.user.userId);
   }
 
+  @ApiOperation({ summary: 'Get authenticated user profile' })
+  @ApiBearerAuth()
   @Get('profile')
   @UseGuards(AccessTokenGuard)
   async getProfile(@Req() req: any) {
