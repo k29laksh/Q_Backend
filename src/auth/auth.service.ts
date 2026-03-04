@@ -38,7 +38,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
-  ) {}
+  ) { }
 
   // ─── Signup Step 1: Save personal details to draft ────────
   async signupStep1(dto: SignupStep1Dto) {
@@ -110,7 +110,8 @@ export class AuthService {
       );
     }
 
-    const { fullName, email, phoneNumber } = draft.formData;
+    const { email, phoneNumber } = draft.formData;
+    const fullName = dto.ownerName || draft.formData.fullName;
 
     if (!fullName || !email || !phoneNumber) {
       throw new BadRequestException(
@@ -160,6 +161,7 @@ export class AuthService {
         pan: dto.pan,
         gstin: dto.gstin,
         address: dto.address,
+        establishmentYear: dto.establishmentYear,
         customer: savedCustomer,
       });
       const savedCompany = await queryRunner.manager.save(company);
@@ -170,6 +172,8 @@ export class AuthService {
         legalName: dto.legalName,
         gstin: dto.gstin,
         address: dto.address,
+        establishmentYear: dto.establishmentYear,
+        fullName: fullName,
       };
       draft.currentStep = 2;
       draft.status = 'SUBMITTED';
@@ -186,6 +190,7 @@ export class AuthService {
           pan: savedCompany.pan,
           gstin: savedCompany.gstin,
           address: savedCompany.address,
+          establishmentYear: savedCompany.establishmentYear,
         },
       };
     } catch (error) {

@@ -53,6 +53,16 @@ export class SignupStep2Dto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @ApiPropertyOptional({ example: '2010', description: 'Year of establishment' })
+  @IsString()
+  @IsOptional()
+  establishmentYear?: string;
+
+  @ApiPropertyOptional({ example: 'Jane Doe', description: 'Name of the business owner' })
+  @IsString()
+  @IsOptional()
+  ownerName?: string;
 }
 
 export class SendOtpDto {
