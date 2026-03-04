@@ -17,6 +17,7 @@ import { BidPlusGemPortalOrganizationMaster } from './entity/bid-plus-gem-portal
 import { BidDataModule } from './bid-data/bid-data.module';
 
 import { ProfileModule } from './profile/customer-profile.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ProfileModule } from './profile/customer-profile.module';
     AuthModule,
     BidDataModule,
     ProfileModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

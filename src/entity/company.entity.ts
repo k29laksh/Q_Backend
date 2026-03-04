@@ -18,13 +18,13 @@ export class Company {
   @Column()
   legalName: string;
 
-  @Column({ unique: true })
+  @Column()
   pan: string;
 
-  @Column({ nullable: true })
+  @Column({ unique: true })
   gstin: string;
 
-  @Column({ nullable: true })
+  @Column()
   address: string;
 
   @Column({ nullable: true })

@@ -6,7 +6,7 @@ import { CustomerProfileService } from './customer-profile.service';
 // Import your entities
 import { Customer } from '../entity/customer.entity';
 import { Company } from '../entity/company.entity';
-import { CustomerHsn } from 'src/entity/customer-hsn-codes.entity';
+import { CustomerHsn } from '../entity/customer-hsn-codes.entity';
 import { CompanyDocument } from '../entity/company-document.entity';
 
 @Module({

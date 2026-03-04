@@ -1,14 +1,18 @@
 // src/profile/customer-profile.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../entity/customer.entity';
 import { Company } from '../entity/company.entity';
-import { CustomerHsn } from 'src/entity/customer-hsn-codes.entity';
+import { CustomerHsn } from '../entity/customer-hsn-codes.entity';
 import {
   CreateMultipleCompaniesDto,
   SaveHsnSetupDto,
-} from 'src/dtos/profile.dto';
+} from '../dtos/profile.dto';
 
 @Injectable()
 export class CustomerProfileService {
@@ -28,15 +32,58 @@ export class CustomerProfileService {
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const companiesToSave = dto.companies.map((companyData) => {
-      return this.companyRepo.create({
+    const savedCompanies: Company[] = [];
+
+    for (const companyData of dto.companies) {
+      // 1. If GSTIN is provided, check if it already exists in the entire database
+      if (companyData.gstin) {
+        const existingGstCompany = await this.companyRepo.findOne({
+          where: { gstin: companyData.gstin },
+        });
+
+        if (existingGstCompany) {
+          // If it belongs to the SAME user, just update it (prevents crashes if they click Continue twice)
+          if (existingGstCompany.userId === customer.id) {
+            Object.assign(existingGstCompany, companyData);
+            savedCompanies.push(
+              await this.companyRepo.save(existingGstCompany),
+            );
+            continue; // Move to the next company in the loop
+          } else {
+            // If it belongs to SOMEONE ELSE, throw the error
+            throw new ConflictException(
+              `A company already exists with this GST number: ${companyData.gstin}`,
+            );
+          }
+        }
+      } else {
+        // 2. If NO GSTIN is provided, check if they already added this exact PAN + Name
+        const existingPanCompany = await this.companyRepo.findOne({
+          where: {
+            pan: companyData.pan,
+            legalName: companyData.legalName,
+            userId: customer.id,
+          },
+        });
+
+        if (existingPanCompany) {
+          Object.assign(existingPanCompany, companyData);
+          savedCompanies.push(await this.companyRepo.save(existingPanCompany));
+          continue;
+        }
+      }
+
+      // 3. If it does not exist, create a brand new company record
+      const newCompany = this.companyRepo.create({
         ...companyData,
-        customer: customer, // Link to the customer
+        customer: customer,
         userId: customer.id,
       });
-    });
 
-    return this.companyRepo.save(companiesToSave);
+      savedCompanies.push(await this.companyRepo.save(newCompany));
+    }
+
+    return savedCompanies;
   }
 
   // 2. API to save multiple HSN codes and Notification Preferences
