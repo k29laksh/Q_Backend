@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from '../entity/user.entity';
+import { Customer } from '../entity/customer.entity';
 import { Company } from '../entity/company.entity';
 import { OnboardingDraft } from '../entity/onboarding.entity';
 import { OtpCode } from '../entity/otp.entity';
@@ -26,8 +26,8 @@ import { EmailService } from './email.service';
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(Customer)
+    private readonly customerRepository: Repository<Customer>,
     @InjectRepository(Company)
     private readonly companyRepository: Repository<Company>,
     @InjectRepository(OnboardingDraft)
@@ -42,16 +42,16 @@ export class AuthService {
 
   // ─── Signup Step 1: Save personal details to draft ────────
   async signupStep1(dto: SignupStep1Dto) {
-    // Check if user already exists (fully registered)
-    const existingUser = await this.userRepository.findOne({
+    // Check if customer already exists (fully registered)
+    const existingCustomer = await this.customerRepository.findOne({
       where: { email: dto.email },
     });
-    if (existingUser) {
+    if (existingCustomer) {
       throw new ConflictException('Email already registered');
     }
 
     // Check if phone number is already taken
-    const existingMobile = await this.userRepository.findOne({
+    const existingMobile = await this.customerRepository.findOne({
       where: { mobile: dto.phoneNumber },
     });
     if (existingMobile) {
@@ -92,7 +92,7 @@ export class AuthService {
     };
   }
 
-  // ─── Signup Step 2: Save business details + create User & Company ─
+  // ─── Signup Step 2: Save business details + create Customer & Company ─
   async signupStep2(dto: SignupStep2Dto) {
     const draft = await this.onboardingDraftRepository.findOne({
       where: { email: dto.email },
@@ -118,16 +118,16 @@ export class AuthService {
       );
     }
 
-    // Check if user already exists
-    const existingUser = await this.userRepository.findOne({
+    // Check if customer already exists
+    const existingCustomer = await this.customerRepository.findOne({
       where: { email },
     });
-    if (existingUser) {
+    if (existingCustomer) {
       throw new ConflictException('Email already registered');
     }
 
     // Check if mobile number is already taken
-    const existingMobile = await this.userRepository.findOne({
+    const existingMobile = await this.customerRepository.findOne({
       where: { mobile: phoneNumber },
     });
     if (existingMobile) {
@@ -142,25 +142,25 @@ export class AuthService {
       throw new ConflictException('PAN already registered');
     }
 
-    // Use a transaction to create User + Company + update draft atomically
+    // Use a transaction to create Customer + Company + update draft atomically
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const user = queryRunner.manager.create(User, {
+      const customer = queryRunner.manager.create(Customer, {
         fullName,
         email,
         mobile: phoneNumber,
       });
-      const savedUser = await queryRunner.manager.save(user);
+      const savedCustomer = await queryRunner.manager.save(customer);
 
       const company = queryRunner.manager.create(Company, {
         legalName: dto.legalName,
         pan: dto.pan,
         gstin: dto.gstin,
         address: dto.address,
-        userId: savedUser.id,
+        customer: savedCustomer,
       });
       const savedCompany = await queryRunner.manager.save(company);
 
@@ -179,7 +179,7 @@ export class AuthService {
 
       return {
         message: 'Signup completed successfully. Please login to continue.',
-        user: this.sanitizeUser(savedUser),
+        user: this.sanitizeCustomer(savedCustomer),
         company: {
           id: savedCompany.id,
           legalName: savedCompany.legalName,
@@ -211,10 +211,10 @@ export class AuthService {
 
   // ─── Send OTP (for login) ─────────────────────────────────
   async sendOtp(dto: SendOtpDto) {
-    const user = await this.userRepository.findOne({
+    const customer = await this.customerRepository.findOne({
       where: { email: dto.email },
     });
-    if (!user) {
+    if (!customer) {
       throw new NotFoundException('No account found with this email');
     }
 
@@ -258,10 +258,10 @@ export class AuthService {
 
   // ─── Verify OTP (login) ───────────────────────────────────
   async verifyOtp(dto: VerifyOtpDto) {
-    const user = await this.userRepository.findOne({
+    const customer = await this.customerRepository.findOne({
       where: { email: dto.email },
     });
-    if (!user) {
+    if (!customer) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -276,7 +276,9 @@ export class AuthService {
     });
 
     if (!otpRecord) {
-      throw new UnauthorizedException('OTP expired or not found. Request a new one.');
+      throw new UnauthorizedException(
+        'OTP expired or not found. Request a new one.',
+      );
     }
 
     // Check max attempts (5)
@@ -301,52 +303,56 @@ export class AuthService {
     await this.otpRepository.save(otpRecord);
 
     // Generate tokens
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    const tokens = await this.generateTokens(customer.id, customer.email);
+    await this.updateRefreshToken(customer.id, tokens.refreshToken);
 
     return {
-      user: this.sanitizeUser(user),
+      user: this.sanitizeCustomer(customer),
       ...tokens,
     };
   }
 
   // ─── Refresh Tokens ───────────────────────────────────────
-  async refreshTokens(userId: string, refreshToken: string) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user || !user.hashedRefreshToken) {
+  async refreshTokens(customerId: string, refreshToken: string) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+    });
+    if (!customer || !customer.hashedRefreshToken) {
       throw new ForbiddenException('Access denied');
     }
 
     const rtMatches = await bcrypt.compare(
       refreshToken,
-      user.hashedRefreshToken,
+      customer.hashedRefreshToken,
     );
     if (!rtMatches) {
       throw new ForbiddenException('Access denied');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    const tokens = await this.generateTokens(customer.id, customer.email);
+    await this.updateRefreshToken(customer.id, tokens.refreshToken);
 
     return tokens;
   }
 
   // ─── Logout ────────────────────────────────────────────────
-  async logout(userId: string) {
-    await this.userRepository.update(userId, { hashedRefreshToken: null });
+  async logout(customerId: string) {
+    await this.customerRepository.update(customerId, {
+      hashedRefreshToken: null,
+    });
     return { message: 'Logged out successfully' };
   }
 
   // ─── Get Profile ──────────────────────────────────────────
-  async getProfile(userId: string) {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['company'],
+  async getProfile(customerId: string) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+      relations: ['companies'],
     });
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+    if (!customer) {
+      throw new UnauthorizedException('Customer not found');
     }
-    return this.sanitizeUser(user);
+    return this.sanitizeCustomer(customer);
   }
 
   // ─── Get Draft Status ─────────────────────────────────────
@@ -391,11 +397,13 @@ export class AuthService {
 
   private async updateRefreshToken(userId: string, refreshToken: string) {
     const hashed = await bcrypt.hash(refreshToken, 10);
-    await this.userRepository.update(userId, { hashedRefreshToken: hashed });
+    await this.customerRepository.update(userId, {
+      hashedRefreshToken: hashed,
+    });
   }
 
-  private sanitizeUser(user: User) {
-    const { hashedRefreshToken, ...result } = user;
+  private sanitizeCustomer(customer: Customer) {
+    const { hashedRefreshToken, ...result } = customer;
     return result;
   }
 }

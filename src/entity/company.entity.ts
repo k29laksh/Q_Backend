@@ -3,10 +3,12 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
-  OneToOne,
+  ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from './user.entity';
+import { Customer } from './customer.entity';
+import { CompanyDocument } from './company-document.entity';
 
 @Entity('companies')
 export class Company {
@@ -25,9 +27,15 @@ export class Company {
   @Column({ nullable: true })
   address: string;
 
-  @OneToOne(() => User, (user) => user.company)
-  @JoinColumn()
-  user: User;
+  @Column({ nullable: true })
+  establishmentYear: string;
+
+  // Changed to ManyToOne: Many companies can belong to one customer
+  @ManyToOne(() => Customer, (customer) => customer.companies, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'userId' })
+  customer: Customer;
 
   @Column()
   userId: string;
@@ -38,6 +46,10 @@ export class Company {
     default: 'PENDING',
   })
   status: string;
+
+  // Documents stay with the company (PAN, GST Cert, ITRs belong to the business)
+  @OneToMany(() => CompanyDocument, (doc) => doc.company, { cascade: true })
+  documents: CompanyDocument[];
 
   @CreateDateColumn()
   createdAt: Date;
