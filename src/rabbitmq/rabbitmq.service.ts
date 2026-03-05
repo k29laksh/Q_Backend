@@ -42,10 +42,10 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`Published → ${JSON.stringify(payload)}`);
   }
 
-  async publishAnalysis(userId: string): Promise<void> {
+  async publishAnalysis(companyId: string): Promise<void> {
     const payload = {
       type: 'analysis_request',
-      userId,
+      companyId,
       timestamp: new Date().toISOString(),
     };
     const buffer = Buffer.from(JSON.stringify(payload));
@@ -53,7 +53,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       contentType: 'application/json',
       persistent: true,
     });
-    this.logger.log(`Analysis request published for userId=${userId}`);
+    this.logger.log(`Analysis request published for companyId=${companyId}`);
   }
 
   async onModuleDestroy() {

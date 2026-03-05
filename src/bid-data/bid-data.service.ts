@@ -140,7 +140,7 @@ export class BidDataService {
 
   async getAllTenders(
     page: number = 1,
-    limit: number = 20,
+    limit: number = 10,
   ): Promise<PaginatedTenders> {
     const skip = (page - 1) * limit;
 

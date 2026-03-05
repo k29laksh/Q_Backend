@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,6 +25,9 @@ import {
 } from './bid-data.service';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { RabbitmqService } from '../rabbitmq/rabbitmq.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Company } from '../entity/company.entity';
 
 @ApiTags('Bid Data')
 @Controller('bid-data')
@@ -33,6 +37,8 @@ export class BidDataController {
   constructor(
     private readonly bidDataService: BidDataService,
     private readonly rabbitmqService: RabbitmqService,
+    @InjectRepository(Company)
+    private readonly companyRepo: Repository<Company>,
   ) {}
 
   @Get('tenders')
@@ -76,16 +82,27 @@ export class BidDataController {
   @ApiOperation({
     summary: 'Trigger AI analysis for the authenticated customer',
     description:
-      'Publishes the customer ID to the analysis_exchange on RabbitMQ. The FastAPI AI service picks it up and runs the analysis.',
+      'Looks up the company belonging to the logged-in customer and publishes the companyId to the analysis_exchange on RabbitMQ. The FastAPI AI service picks it up and runs the analysis.',
   })
   @ApiResponse({ status: 202, description: 'Analysis request queued.' })
+  @ApiResponse({ status: 404, description: 'No company found for this customer.' })
   async triggerAnalysis(@Req() req: any) {
     const userId: string = req.user.userId;
-    await this.rabbitmqService.publishAnalysis(userId);
+
+    // Look up the company mapped to this customer
+    const company = await this.companyRepo.findOne({
+      where: { userId },
+    });
+
+    if (!company) {
+      throw new NotFoundException('No company found for this customer.');
+    }
+
+    await this.rabbitmqService.publishAnalysis(company.id);
     return {
       status: 'queued',
       message: 'Analysis request sent to AI service.',
-      userId,
+      companyId: company.id,
     };
   }
 }

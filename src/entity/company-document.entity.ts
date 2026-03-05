@@ -27,16 +27,9 @@ export class CompanyDocument {
   @Column()
   documentType: string;
 
-  @Column({ type: 'bytea', nullable: true })
-  fileData: Buffer;
-
   @Column({ nullable: true })
   fileName: string;
 
-  @Column({ nullable: true })
-  mimeType: string; // e.g., 'application/pdf'
-
-  //  this for later when you migrate to AWS
   @Column({ nullable: true })
   fileUrl: string;
 
