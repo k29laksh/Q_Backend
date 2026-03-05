@@ -2,6 +2,9 @@ import {
   Controller,
   Get,
   Post,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -10,10 +13,15 @@ import {
 import {
   ApiTags,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { BidDataService, BidResult } from './bid-data.service';
+import {
+  BidDataService,
+  BidResult,
+  PaginatedTenders,
+} from './bid-data.service';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { RabbitmqService } from '../rabbitmq/rabbitmq.service';
 
@@ -26,6 +34,22 @@ export class BidDataController {
     private readonly bidDataService: BidDataService,
     private readonly rabbitmqService: RabbitmqService,
   ) {}
+
+  @Get('tenders')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all tenders (paginated)',
+    description: 'Returns all active tenders from the database with pagination. No matching logic — raw full list.',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiResponse({ status: 200, description: 'All tenders returned successfully.' })
+  async getAllTenders(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ): Promise<PaginatedTenders> {
+    return this.bidDataService.getAllTenders(page, limit);
+  }
 
   @Get('match/customer')
   @HttpCode(HttpStatus.OK)

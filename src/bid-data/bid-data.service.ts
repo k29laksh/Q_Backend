@@ -12,6 +12,29 @@ import { calculateFuzzyScore } from '../../utils/fuzzyMatch';
 import { calculateHSNScore } from '../../utils/hsnMatch';
 import { calculateTokenScore } from '../../utils/tokenMatch';
 
+export interface TenderResult {
+  id: number;
+  bidNumber: string;
+  bidUrl: string;
+  items: string;
+  ministryName: string;
+  organisationName: string;
+  departmentName: string;
+  startDate: string;
+  endDate: string;
+  quantity: number;
+  hsn: string;
+  isActive: boolean;
+}
+
+export interface PaginatedTenders {
+  data: TenderResult[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface BidResult {
   bidNumber: string;
   ministry: string;
@@ -113,6 +136,43 @@ export class BidDataService {
       this.logger.error(`Error parsing end date: ${endDateRaw}`, error);
       return false; // If parsing fails entirely, keep it in the results to be safe
     }
+  }
+
+  async getAllTenders(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PaginatedTenders> {
+    const skip = (page - 1) * limit;
+
+    const [bids, total] = await this.bidDataRepo.findAndCount({
+      where: { isActive: true },
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    const data: TenderResult[] = bids.map((bid) => ({
+      id: bid.id,
+      bidNumber: bid.bidNumber,
+      bidUrl: bid.bidUrl || '',
+      items: bid.items || '',
+      ministryName: bid.ministryName || '',
+      organisationName: bid.organisationName || '',
+      departmentName: bid.departmentName || '',
+      startDate: bid.startDateRaw || '',
+      endDate: bid.endDateRaw || '',
+      quantity: bid.quantity,
+      hsn: bid.hsn || '',
+      isActive: bid.isActive,
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findBidsForCustomer(customerId: string): Promise<BidResult[]> {
