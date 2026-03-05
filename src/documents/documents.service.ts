@@ -119,6 +119,7 @@ export class DocumentsService {
             status: existing?.status ?? 'PENDING',
             id: existing?.id ?? null,
             fileName: existing?.fileName ?? null,
+            fileUrl: existing?.fileUrl ?? null,
             uploadedAt: existing?.uploadedAt ?? null,
           };
         });

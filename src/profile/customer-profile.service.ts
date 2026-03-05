@@ -20,7 +20,7 @@ export class CustomerProfileService {
     @InjectRepository(Customer) private customerRepo: Repository<Customer>,
     @InjectRepository(Company) private companyRepo: Repository<Company>,
     @InjectRepository(CustomerHsn) private hsnRepo: Repository<CustomerHsn>,
-  ) {}
+  ) { }
 
   // 1. API to bulk save multiple companies from the Verification Step
   async addMultipleCompanies(
@@ -151,6 +151,7 @@ export class CustomerProfileService {
         'document.category',
         'document.documentType',
         'document.fileName',
+        'document.fileUrl',
         'document.status',
         'document.uploadedAt',
       ])
