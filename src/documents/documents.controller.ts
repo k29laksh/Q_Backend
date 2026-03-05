@@ -7,14 +7,20 @@ import {
   Post,
   Res,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 
+@ApiTags('Documents')
+@ApiBearerAuth()
+@UseGuards(AccessTokenGuard)
 @Controller('companies/:companyId/documents')
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}

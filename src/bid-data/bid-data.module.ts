@@ -5,9 +5,13 @@ import { Customer } from '../entity/customer.entity';
 import { CustomerHsn } from '../entity/customer-hsn-codes.entity';
 import { BidDataService } from './bid-data.service';
 import { BidDataController } from './bid-data.controller';
+import { RabbitmqModule } from '../rabbitmq/rabbitmq.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GemBidData, Customer, CustomerHsn])],
+  imports: [
+    TypeOrmModule.forFeature([GemBidData, Customer, CustomerHsn]),
+    RabbitmqModule,
+  ],
   controllers: [BidDataController],
   providers: [BidDataService],
   exports: [BidDataService],

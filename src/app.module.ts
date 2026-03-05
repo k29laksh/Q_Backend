@@ -15,7 +15,7 @@ import { GemBidData } from './entity/bid-data.entity';
 import { BidPlusGemPortalMinistryMaster } from './entity/bid-plus-gem-portal-ministry-master.entity';
 import { BidPlusGemPortalOrganizationMaster } from './entity/bid-plus-gem-portal-organization-master.entity';
 import { BidDataModule } from './bid-data/bid-data.module';
-
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { ProfileModule } from './profile/customer-profile.module';
 import { DocumentsModule } from './documents/documents.module';
 
@@ -48,6 +48,7 @@ import { DocumentsModule } from './documents/documents.module';
     BidDataModule,
     ProfileModule,
     DocumentsModule,
+    RabbitmqModule,
   ],
   controllers: [AppController],
   providers: [AppService],
