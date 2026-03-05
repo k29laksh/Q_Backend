@@ -43,7 +43,10 @@ export class DocumentsController {
     @Param('documentId') documentId: string,
     @Res() res: Response,
   ) {
-    const doc = await this.documentsService.getDocumentFile(companyId, documentId);
+    const doc = await this.documentsService.getDocumentFile(
+      companyId,
+      documentId,
+    );
     res.set({
       'Content-Type': doc.mimeType,
       'Content-Disposition': `inline; filename="${doc.fileName}"`,

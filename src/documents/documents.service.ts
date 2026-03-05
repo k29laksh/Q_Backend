@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CompanyDocument, DocumentCategory } from '../entity/company-document.entity';
+import {
+  CompanyDocument,
+  DocumentCategory,
+} from '../entity/company-document.entity';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
 // Maps each category to its expected document types
@@ -87,27 +90,31 @@ export class DocumentsService {
 
     const uploadedMap = new Map(uploaded.map((d) => [d.documentType, d]));
 
-    const categories = Object.entries(DOCUMENT_CONFIG).map(([category, types]) => {
-      const docs = types.map((type) => {
-        const existing = uploadedMap.get(type);
+    const categories = Object.entries(DOCUMENT_CONFIG).map(
+      ([category, types]) => {
+        const docs = types.map((type) => {
+          const existing = uploadedMap.get(type);
+          return {
+            documentType: type,
+            status: existing?.status ?? 'PENDING',
+            id: existing?.id ?? null,
+            fileName: existing?.fileName ?? null,
+            uploadedAt: existing?.uploadedAt ?? null,
+          };
+        });
+
+        const uploadedCount = docs.filter(
+          (d) => d.status === 'UPLOADED',
+        ).length;
+
         return {
-          documentType: type,
-          status: existing?.status ?? 'PENDING',
-          id: existing?.id ?? null,
-          fileName: existing?.fileName ?? null,
-          uploadedAt: existing?.uploadedAt ?? null,
+          category,
+          uploadedCount,
+          totalCount: types.length,
+          documents: docs,
         };
-      });
-
-      const uploadedCount = docs.filter((d) => d.status === 'UPLOADED').length;
-
-      return {
-        category,
-        uploadedCount,
-        totalCount: types.length,
-        documents: docs,
-      };
-    });
+      },
+    );
 
     const totalUploaded = uploaded.length;
     const totalSlots = 16;

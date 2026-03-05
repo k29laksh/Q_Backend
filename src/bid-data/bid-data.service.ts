@@ -66,12 +66,52 @@ export class BidDataService {
     if (!endDateRaw) return false;
 
     try {
+      // Split the string into date and time parts (e.g., "04-02-2026" and "1:00 PM")
+      const dateTimeParts = endDateRaw.trim().split(' ');
+      const datePart = dateTimeParts[0];
+
+      // Check if it matches a DD-MM-YYYY or DD/MM/YYYY format
+      if (datePart && (datePart.includes('-') || datePart.includes('/'))) {
+        const dateSegments = datePart.split(/[-/]/);
+
+        // If it successfully split into 3 parts and the year is at the end
+        if (dateSegments.length === 3 && dateSegments[2].length === 4) {
+          const day = parseInt(dateSegments[0], 10);
+          const month = parseInt(dateSegments[1], 10) - 1; // JS months are 0-indexed (0 = Jan)
+          const year = parseInt(dateSegments[2], 10);
+
+          let hours = 0;
+          let minutes = 0;
+
+          // Parse the time part if it exists (e.g., "1:00 PM")
+          const timePart = dateTimeParts.slice(1).join(' ');
+          if (timePart) {
+            const timeMatch = timePart.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+            if (timeMatch) {
+              hours = parseInt(timeMatch[1], 10);
+              minutes = parseInt(timeMatch[2], 10);
+              const ampm = timeMatch[3]?.toUpperCase();
+
+              // Convert to 24-hour time for the Date object
+              if (ampm === 'PM' && hours !== 12) hours += 12;
+              if (ampm === 'AM' && hours === 12) hours = 0;
+            }
+          }
+
+          const endDate = new Date(year, month, day, hours, minutes);
+          const currentDate = new Date();
+
+          return currentDate > endDate;
+        }
+      }
+
+      // Safe fallback if the date is already in standard ISO format (e.g., 2026-02-04T13:00)
       const endDate = new Date(endDateRaw);
       const currentDate = new Date();
       return currentDate > endDate;
     } catch (error) {
       this.logger.error(`Error parsing end date: ${endDateRaw}`, error);
-      return false;
+      return false; // If parsing fails entirely, keep it in the results to be safe
     }
   }
 
@@ -150,9 +190,10 @@ export class BidDataService {
         `Database query completed in ${queryTime}ms - Found ${bids.length} bids`,
       );
 
-      const activeBids = bids.filter(
-        (bid) => !this.isBidExpired(bid.endDateRaw),
-      );
+      // const activeBids = bids.filter(
+      //   (bid) => !this.isBidExpired(bid.endDateRaw),
+      // );
+      const activeBids = bids;
       const expiredCount = bids.length - activeBids.length;
 
       if (expiredCount > 0) {

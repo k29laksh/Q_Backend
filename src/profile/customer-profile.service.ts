@@ -134,16 +134,35 @@ export class CustomerProfileService {
     return this.hsnRepo.save(newHsns);
   }
   // 3. Update Get Profile API to fetch all relationship details
+  // 3. Update Get Profile API to fetch all relationship details (Safely fetching documents)
   async getCustomerProfile(customerId: string) {
-    const profile = await this.customerRepo.findOne({
-      where: { id: customerId },
-      relations: ['companies', 'hsnCodes'], // Fetches the nested data
-    });
+    const profile = await this.customerRepo
+      .createQueryBuilder('customer')
+      // 1. Join and select all company data
+      .leftJoinAndSelect('customer.companies', 'company')
+      // 2. Join and select all HSN codes
+      .leftJoinAndSelect('customer.hsnCodes', 'hsn')
+      // 3. Join the documents, but use 'leftJoin' instead of 'leftJoinAndSelect'
+      // so we can manually pick which columns to download
+      .leftJoin('company.documents', 'document')
+      // Explicitly select only the lightweight metadata (skipping the 'fileData' buffer!)
+      .addSelect([
+        'document.id',
+        'document.category',
+        'document.documentType',
+        'document.fileName',
+        'document.status',
+        'document.uploadedAt',
+      ])
+      .where('customer.id = :customerId', { customerId })
+      .getOne();
 
-    if (!profile) throw new NotFoundException('Customer profile not found');
+    if (!profile) {
+      throw new NotFoundException('Customer profile not found');
+    }
+
     return profile;
   }
-
   // 4. Make an API to get company details (fetching document relations)
   async getCompanyDetails(companyId: string) {
     const company = await this.companyRepo.findOne({
