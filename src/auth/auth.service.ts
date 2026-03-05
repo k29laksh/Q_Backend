@@ -181,9 +181,14 @@ export class AuthService {
 
       await queryRunner.commitTransaction();
 
+      // Generate an access token so the user can immediately use
+      // authenticated endpoints (e.g. HSN setup) during signup flow
+      const tokens = await this.generateTokens(savedCustomer.id, savedCustomer.email);
+
       return {
         message: 'Signup completed successfully. Please login to continue.',
         user: this.sanitizeCustomer(savedCustomer),
+        accessToken: tokens.accessToken,
         company: {
           id: savedCompany.id,
           legalName: savedCompany.legalName,
