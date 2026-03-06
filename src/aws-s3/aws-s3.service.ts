@@ -40,7 +40,8 @@ export class AwsS3Service implements OnModuleInit {
     folder: string,
     originalName: string,
   ): Promise<{ url: string; key: string }> {
-    const key = `${folder}/${Date.now()}-${originalName}`;
+    const safeName = originalName.replace(/\s+/g, '_');
+    const key = `${folder}/${Date.now()}-${safeName}`;
 
     await this.s3Client.send(
       new PutObjectCommand({
