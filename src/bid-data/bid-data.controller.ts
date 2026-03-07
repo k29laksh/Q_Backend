@@ -138,8 +138,8 @@ export class BidDataController {
       hsn: bid.hsn,
     };
 
-    // 5. Publish to RabbitMQ and wait for AI result
-    const result = await this.rabbitmqService.publishAndWaitForResult({
+    // 5. Publish to RabbitMQ (fire-and-forget — client uses SSE to get results)
+    await this.rabbitmqService.publishTenderApply({
       bidUrl: bid.bidUrl || '',
       bidNumber: bid.bidNumber,
       bidDetails,
@@ -147,11 +147,10 @@ export class BidDataController {
     });
 
     return {
-      status: result.status,
+      status: 'processing',
       bidNumber: bid.bidNumber,
       bidUrl: bid.bidUrl,
       documentsIncluded: companyDocuments.length,
-      analysis: result,
     };
   }
 }
