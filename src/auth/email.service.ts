@@ -9,17 +9,34 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('COMMON_SMTP_EMAIL_SMTP_HOST');
-    const port = this.configService.get<number>('COMMON_SMTP_EMAIL_SMTP_PORT');
+    const port = Number(this.configService.get('COMMON_SMTP_EMAIL_SMTP_PORT'));
     const user = this.configService.get<string>('COMMON_SMTP_EMAIL_USERNAME');
     const pass = this.configService.get<string>('COMMON_SMTP_EMAIL_PASSWORD');
 
-    this.logger.log(`SMTP config → host: ${host}, port: ${port}, user: ${user}`);
+    this.logger.log(
+      `SMTP config → host: ${host}, port: ${port}, user: ${user}`,
+    );
 
     this.transporter = nodemailer.createTransport({
       host,
-      port,
+      port: Number(port),
       secure: false,
-      auth: { user, pass },
+      auth: {
+        user,
+        pass,
+      },
+      requireTLS: true,
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    this.transporter.verify((error, success) => {
+      if (error) {
+        this.logger.error('SMTP connection failed', error);
+      } else {
+        this.logger.log('SMTP server ready');
+      }
     });
   }
 
