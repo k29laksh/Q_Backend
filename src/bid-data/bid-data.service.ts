@@ -36,6 +36,7 @@ export interface PaginatedTenders {
 }
 
 export interface BidResult {
+  id: number;
   bidNumber: string;
   ministry: string;
   organization: string;
@@ -308,6 +309,7 @@ export class BidDataService {
               }
 
               results.push({
+                id: bid.id,
                 bidNumber: bid.bidNumber,
                 ministry: bid.ministryName || '',
                 organization: bid.organisationName || '',
@@ -358,6 +360,7 @@ export class BidDataService {
             })
             .slice(0, 5)
             .map(({ bid, hsnScore, matchingDigits }) => ({
+              id: bid.id,
               bidNumber: bid.bidNumber,
               ministry: bid.ministryName || '',
               organization: bid.organisationName || '',

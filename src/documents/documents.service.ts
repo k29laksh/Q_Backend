@@ -10,6 +10,34 @@ import { AwsS3Service } from '../aws-s3/aws-s3.service';
 
 const CATEGORIES = Object.values(DocumentCategory);
 
+/** Expected document types for each category */
+const EXPECTED_DOCUMENTS: Record<string, string[]> = {
+  REGISTRATION_IDENTITY: [
+    'PAN Card',
+    'GST Certificate',
+    'Udyam Registration Certificate',
+    'Company Incorporation Certificate',
+  ],
+  FINANCIAL: [
+    'Annual Turnover Certificate',
+    'Balance Sheet',
+    'ITR (Income Tax Return)',
+    'Bank Statement',
+  ],
+  WORK_EXPERIENCE: [
+    'Work Order Copy',
+    'Completion Certificate',
+    'Purchase Order',
+    'Client Reference Letter',
+  ],
+  CERTIFICATION: [
+    'ISO Certification',
+    'BIS Certification',
+    'Self-Certification Local Content',
+    'Manufacturer Authorization Form',
+  ],
+};
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -83,26 +111,68 @@ export class DocumentsService {
     const uploaded = await this.documentRepo.find({ where: { companyId } });
 
     const categories = CATEGORIES.map((category) => {
-      const docs = uploaded
-        .filter((d) => d.category === category)
-        .map((d) => ({
-          documentType: d.documentType,
-          status: d.status,
-          id: d.id,
-          fileName: d.fileName,
-          fileUrl: d.fileUrl,
-          uploadedAt: d.uploadedAt,
-        }));
+      const uploadedDocs = uploaded.filter((d) => d.category === category);
+      const uploadedMap = new Map(
+        uploadedDocs.map((d) => [d.documentType, d]),
+      );
+
+      const expectedTypes = EXPECTED_DOCUMENTS[category] || [];
+      const docs = expectedTypes.map((docType) => {
+        const existing = uploadedMap.get(docType);
+        if (existing) {
+          return {
+            documentType: existing.documentType,
+            status: existing.status,
+            id: existing.id,
+            fileName: existing.fileName,
+            fileUrl: existing.fileUrl,
+            uploadedAt: existing.uploadedAt,
+          };
+        }
+        return {
+          documentType: docType,
+          status: 'PENDING' as const,
+          id: null,
+          fileName: null,
+          fileUrl: null,
+          uploadedAt: null,
+        };
+      });
+
+      // Also include any uploaded docs with types not in the expected list
+      for (const doc of uploadedDocs) {
+        if (!expectedTypes.includes(doc.documentType)) {
+          docs.push({
+            documentType: doc.documentType,
+            status: doc.status,
+            id: doc.id,
+            fileName: doc.fileName,
+            fileUrl: doc.fileUrl,
+            uploadedAt: doc.uploadedAt,
+          });
+        }
+      }
 
       return {
         category,
-        uploadedCount: docs.length,
+        uploadedCount: uploadedDocs.filter((d) => d.status === 'UPLOADED')
+          .length,
+        totalCount: docs.length,
         documents: docs,
       };
     });
 
+    const totalDocs = categories.reduce((sum, c) => sum + c.totalCount, 0);
+    const totalUploaded = categories.reduce(
+      (sum, c) => sum + c.uploadedCount,
+      0,
+    );
+
     return {
-      uploaded: uploaded.length,
+      uploaded: totalUploaded,
+      total: totalDocs,
+      overallProgress:
+        totalDocs > 0 ? Math.round((totalUploaded / totalDocs) * 100) : 0,
       categories,
     };
   }
