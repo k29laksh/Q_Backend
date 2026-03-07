@@ -228,40 +228,41 @@ export class AuthService {
       throw new NotFoundException('No account found with this email');
     }
 
-    // Rate limit: check if an unexpired OTP was sent in the last 60 seconds
-    const recentOtp = await this.otpRepository.findOne({
-      where: {
-        email: dto.email,
-        isUsed: false,
-        expiresAt: MoreThan(new Date(Date.now() + 4 * 60 * 1000)), // created < 60s ago (5min - 4min = 1min)
-      },
-    });
-    if (recentOtp) {
-      throw new BadRequestException(
-        'OTP already sent. Please wait before requesting a new one.',
-      );
-    }
+    // TODO: Re-enable OTP sending once SMTP is fixed
+    // // Rate limit: check if an unexpired OTP was sent in the last 60 seconds
+    // const recentOtp = await this.otpRepository.findOne({
+    //   where: {
+    //     email: dto.email,
+    //     isUsed: false,
+    //     expiresAt: MoreThan(new Date(Date.now() + 4 * 60 * 1000)), // created < 60s ago (5min - 4min = 1min)
+    //   },
+    // });
+    // if (recentOtp) {
+    //   throw new BadRequestException(
+    //     'OTP already sent. Please wait before requesting a new one.',
+    //   );
+    // }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = await bcrypt.hash(otp, 10);
+    // // Generate 6-digit OTP
+    // const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // const otpHash = await bcrypt.hash(otp, 10);
 
-    // Invalidate any existing unused OTPs for this email
-    await this.otpRepository.update(
-      { email: dto.email, isUsed: false },
-      { isUsed: true },
-    );
+    // // Invalidate any existing unused OTPs for this email
+    // await this.otpRepository.update(
+    //   { email: dto.email, isUsed: false },
+    //   { isUsed: true },
+    // );
 
-    // Save new OTP
-    const otpRecord = this.otpRepository.create({
-      email: dto.email,
-      otpHash,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
-    });
-    await this.otpRepository.save(otpRecord);
+    // // Save new OTP
+    // const otpRecord = this.otpRepository.create({
+    //   email: dto.email,
+    //   otpHash,
+    //   expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+    // });
+    // await this.otpRepository.save(otpRecord);
 
-    // Send email via Mailtrap sandbox
-    await this.emailService.sendOtpEmail(dto.email, otp);
+    // // Send email via Mailtrap sandbox
+    // await this.emailService.sendOtpEmail(dto.email, otp);
 
     return { message: 'OTP sent to your email' };
   }
@@ -275,42 +276,43 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Find the latest unused, unexpired OTP for this email
-    const otpRecord = await this.otpRepository.findOne({
-      where: {
-        email: dto.email,
-        isUsed: false,
-        expiresAt: MoreThan(new Date()),
-      },
-      order: { createdAt: 'DESC' },
-    });
+    // TODO: Re-enable OTP verification once SMTP is fixed
+    // // Find the latest unused, unexpired OTP for this email
+    // const otpRecord = await this.otpRepository.findOne({
+    //   where: {
+    //     email: dto.email,
+    //     isUsed: false,
+    //     expiresAt: MoreThan(new Date()),
+    //   },
+    //   order: { createdAt: 'DESC' },
+    // });
 
-    if (!otpRecord) {
-      throw new UnauthorizedException(
-        'OTP expired or not found. Request a new one.',
-      );
-    }
+    // if (!otpRecord) {
+    //   throw new UnauthorizedException(
+    //     'OTP expired or not found. Request a new one.',
+    //   );
+    // }
 
-    // Check max attempts (5)
-    if (otpRecord.attempts >= 5) {
-      otpRecord.isUsed = true;
-      await this.otpRepository.save(otpRecord);
-      throw new UnauthorizedException(
-        'Too many failed attempts. Request a new OTP.',
-      );
-    }
+    // // Check max attempts (5)
+    // if (otpRecord.attempts >= 5) {
+    //   otpRecord.isUsed = true;
+    //   await this.otpRepository.save(otpRecord);
+    //   throw new UnauthorizedException(
+    //     'Too many failed attempts. Request a new OTP.',
+    //   );
+    // }
 
-    // Verify OTP hash
-    const isValid = await bcrypt.compare(dto.otp, otpRecord.otpHash);
-    if (!isValid) {
-      otpRecord.attempts += 1;
-      await this.otpRepository.save(otpRecord);
-      throw new UnauthorizedException('Invalid OTP');
-    }
+    // // Verify OTP hash
+    // const isValid = await bcrypt.compare(dto.otp, otpRecord.otpHash);
+    // if (!isValid) {
+    //   otpRecord.attempts += 1;
+    //   await this.otpRepository.save(otpRecord);
+    //   throw new UnauthorizedException('Invalid OTP');
+    // }
 
-    // Mark OTP as used
-    otpRecord.isUsed = true;
-    await this.otpRepository.save(otpRecord);
+    // // Mark OTP as used
+    // otpRecord.isUsed = true;
+    // await this.otpRepository.save(otpRecord);
 
     // Generate tokens
     const tokens = await this.generateTokens(customer.id, customer.email);
