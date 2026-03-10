@@ -8,11 +8,13 @@ import { CompanyDocument } from '../entity/company-document.entity';
 import { BidDataService } from './bid-data.service';
 import { BidDataController } from './bid-data.controller';
 import { RabbitmqModule } from '../rabbitmq/rabbitmq.module';
+import { AwsS3Module } from '../aws-s3/aws-s3.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([GemBidData, Customer, CustomerHsn, Company, CompanyDocument]),
     RabbitmqModule,
+    AwsS3Module,
   ],
   controllers: [BidDataController],
   providers: [BidDataService],
