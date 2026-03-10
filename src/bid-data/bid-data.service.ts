@@ -7,9 +7,7 @@ import { Customer } from '../entity/customer.entity';
 import { CustomerHsn } from '../entity/customer-hsn-codes.entity';
 
 import { deduplicate } from '../../utils/deduplicate';
-import { calculateBestSegmentScore } from '../../utils/finalScore';
 import { calculateFuzzyScore } from '../../utils/fuzzyMatch';
-import { calculateHSNScore } from '../../utils/hsnMatch';
 import { calculateTokenScore } from '../../utils/tokenMatch';
 
 export interface TenderResult {
@@ -220,171 +218,108 @@ export class BidDataService {
       return [];
     }
 
-    // 4. Run Bid Matching Engine
+    // 4. Run Bid Matching Engine (keyword-only)
     const startTime = Date.now();
-    this.logger.log('=== Bid Matching Started ===');
+    this.logger.log('=== Bid Matching Started (keyword-only) ===');
+
+    // Collect all unique keywords from the customer's HSN records
+    const allKeywords = [
+      ...new Set(
+        Object.values(customerHsnMap).flat().map((k) => k.trim()).filter(Boolean),
+      ),
+    ];
+
     this.logger.debug(
-      `Customer ${customerId} HSN Map: ${JSON.stringify(customerHsnMap, null, 2)}`,
+      `Customer ${customerId} keywords: ${allKeywords.join(', ')}`,
     );
 
     try {
-      const hsnPrefixes = Object.keys(customerHsnMap).map((hsn) =>
-        hsn.slice(0, 2),
-      );
-      const uniquePrefixes = [...new Set(hsnPrefixes)];
-
-      this.logger.debug(
-        `Unique HSN prefixes to search: ${uniquePrefixes.join(', ')}`,
-      );
-
       const queryStartTime = Date.now();
-      const bids = await this.bidDataRepo
-        .createQueryBuilder('b')
-        .where('SUBSTRING(b.hsn, 1, 2) IN (:...prefixes)', {
-          prefixes: uniquePrefixes,
-        })
-        .andWhere('b.isActive = :isActive', { isActive: true })
-        .getMany();
+      const bids = await this.bidDataRepo.find({
+        where: { isActive: true },
+      });
 
       const queryTime = Date.now() - queryStartTime;
       this.logger.debug(
-        `Database query completed in ${queryTime}ms - Found ${bids.length} bids`,
+        `Database query completed in ${queryTime}ms - Found ${bids.length} active bids`,
       );
 
-      // const activeBids = bids.filter(
-      //   (bid) => !this.isBidExpired(bid.endDateRaw),
-      // );
-      const activeBids = bids;
-      const expiredCount = bids.length - activeBids.length;
-
-      if (expiredCount > 0) {
-        this.logger.debug(
-          `Filtered out ${expiredCount} expired bids based on end date`,
-        );
-      }
-
-      if (activeBids.length === 0) {
-        this.logger.debug('No active bids found matching HSN prefixes');
+      if (bids.length === 0) {
+        this.logger.debug('No active bids found');
         return [];
-      }
-
-      const bidsByHSNPrefix = new Map<string, GemBidData[]>();
-      for (const bid of activeBids) {
-        if (!bid.hsn) continue;
-        const prefix = bid.hsn.slice(0, 2);
-        if (!bidsByHSNPrefix.has(prefix)) {
-          bidsByHSNPrefix.set(prefix, []);
-        }
-        bidsByHSNPrefix.get(prefix)!.push(bid);
       }
 
       const results: BidResult[] = [];
       let processedCount = 0;
       let skippedLowScores = 0;
-      let fallbackCount = 0;
 
-      for (const [hsnCode, keywords] of Object.entries(customerHsnMap)) {
-        const hsnPrefix = hsnCode.slice(0, 2);
-        const relevantBids = bidsByHSNPrefix.get(hsnPrefix) || [];
+      for (const bid of bids) {
+        if (!bid.items) continue;
 
-        const resultsBeforeThisHSN = results.length;
+        for (const keyword of allKeywords) {
+          processedCount++;
 
-        for (const bid of relevantBids) {
-          try {
-            for (const keyword of keywords) {
-              processedCount++;
+          // Split bid items into segments and find the best matching one
+          const segments = bid.items
+            .split(/[,;]/)
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
 
-              const scores = calculateBestSegmentScore(
-                hsnCode,
-                keyword,
-                { hsn_code: bid.hsn, bid_items: bid.items },
-                calculateHSNScore,
-                calculateTokenScore,
-                calculateFuzzyScore,
-              );
+          let bestTokenScore = 0;
+          let bestFuzzyScore = 0;
+          let bestSegment = bid.items;
 
-              if (scores.finalScore < 20) {
-                skippedLowScores++;
-                continue;
+          if (segments.length <= 1 || bid.items.length < 50) {
+            bestTokenScore = calculateTokenScore(keyword, bid.items);
+            bestFuzzyScore = calculateFuzzyScore(keyword, bid.items);
+            bestSegment = bid.items;
+          } else {
+            let bestCombined = 0;
+            for (const segment of segments) {
+              const ts = calculateTokenScore(keyword, segment);
+              const fs = calculateFuzzyScore(keyword, segment);
+              const combined = ts * 0.7 + fs * 0.3;
+              if (combined > bestCombined) {
+                bestCombined = combined;
+                bestTokenScore = ts;
+                bestFuzzyScore = fs;
+                bestSegment = segment;
               }
-
-              results.push({
-                id: bid.id,
-                bidNumber: bid.bidNumber,
-                ministry: bid.ministryName || '',
-                organization: bid.organisationName || '',
-                items: bid.items || '',
-                bestMatchingSegment: scores.bestSegment,
-                hsnCode: bid.hsn || '',
-                bidUrl: bid.bidUrl || '',
-                quantity: bid.quantity,
-                department: bid.departmentName,
-                startDate: bid.startDateRaw,
-                endDate: bid.endDateRaw,
-                matchedHSN: hsnCode,
-                matchedKeyword: keyword,
-                hsnScore: parseFloat(scores.hsnScore.toFixed(2)),
-                tokenScore: parseFloat(scores.tokenScore.toFixed(2)),
-                fuzzyScore: parseFloat(scores.fuzzyScore.toFixed(2)),
-                semanticScore: 0,
-                finalScore: parseFloat(scores.finalScore.toFixed(2)),
-                isFallback: false,
-              });
             }
-          } catch (bidError) {
-            this.logger.error(
-              `Error processing bid ${bid.bidNumber}:`,
-              bidError.message,
-            );
+          }
+
+          // Final score = token (70%) + fuzzy (30%)
+          const finalScore = parseFloat(
+            (bestTokenScore * 0.7 + bestFuzzyScore * 0.3).toFixed(2),
+          );
+
+          if (finalScore < 20) {
+            skippedLowScores++;
             continue;
           }
-        }
 
-        const resultsAddedForThisHSN = results.length - resultsBeforeThisHSN;
-
-        if (resultsAddedForThisHSN === 0 && relevantBids.length > 0) {
-          const fallbackResults = relevantBids
-            .map((bid) => {
-              const hsnScore = calculateHSNScore(hsnCode, bid.hsn);
-              const matchingDigits = this.getMatchingHSNDigits(
-                hsnCode,
-                bid.hsn,
-              );
-              return { bid, hsnScore, matchingDigits };
-            })
-            .sort((a, b) => {
-              if (b.matchingDigits !== a.matchingDigits) {
-                return b.matchingDigits - a.matchingDigits;
-              }
-              return b.hsnScore - a.hsnScore;
-            })
-            .slice(0, 5)
-            .map(({ bid, hsnScore, matchingDigits }) => ({
-              id: bid.id,
-              bidNumber: bid.bidNumber,
-              ministry: bid.ministryName || '',
-              organization: bid.organisationName || '',
-              items: bid.items || '',
-              bestMatchingSegment: bid.items || '',
-              hsnCode: bid.hsn || '',
-              bidUrl: bid.bidUrl || '',
-              quantity: bid.quantity,
-              department: bid.departmentName,
-              startDate: bid.startDateRaw,
-              endDate: bid.endDateRaw,
-              matchedHSN: hsnCode,
-              matchedKeyword: keywords[0],
-              hsnScore: parseFloat(hsnScore.toFixed(2)),
-              tokenScore: 0,
-              fuzzyScore: 0,
-              semanticScore: 0,
-              finalScore: parseFloat(hsnScore.toFixed(2)),
-              isFallback: true,
-              matchingDigits: matchingDigits,
-            }));
-
-          results.push(...fallbackResults);
-          fallbackCount += fallbackResults.length;
+          results.push({
+            id: bid.id,
+            bidNumber: bid.bidNumber,
+            ministry: bid.ministryName || '',
+            organization: bid.organisationName || '',
+            items: bid.items || '',
+            bestMatchingSegment: bestSegment,
+            hsnCode: bid.hsn || '',
+            bidUrl: bid.bidUrl || '',
+            quantity: bid.quantity,
+            department: bid.departmentName,
+            startDate: bid.startDateRaw,
+            endDate: bid.endDateRaw,
+            matchedHSN: '',
+            matchedKeyword: keyword,
+            hsnScore: 0,
+            tokenScore: parseFloat(bestTokenScore.toFixed(2)),
+            fuzzyScore: parseFloat(bestFuzzyScore.toFixed(2)),
+            semanticScore: 0,
+            finalScore,
+            isFallback: false,
+          });
         }
       }
 
@@ -392,7 +327,7 @@ export class BidDataService {
         `Matching completed - Processed ${processedCount} combinations`,
       );
       this.logger.log(
-        `Generated ${results.length} results (${fallbackCount} fallback), skipped ${skippedLowScores}`,
+        `Generated ${results.length} results, skipped ${skippedLowScores}`,
       );
 
       const filtered = deduplicate(results).sort(
