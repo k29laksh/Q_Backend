@@ -146,7 +146,14 @@ export class BidDataController {
     // 5. Download the bid document from GeM portal and re-upload to S3
     //    so that the Python AI service can reliably access it.
     //    (GeM gov portal blocks direct server-to-server downloads)
-    const originalBidUrl = bid.bidUrl || '';
+    let originalBidUrl = bid.bidUrl || '';
+
+    // Fix malformed GeM URLs (missing "/" before path)
+    originalBidUrl = originalBidUrl.replace(
+      /gem\.gov\.in(?!\/)/,
+      'gem.gov.in/',
+    );
+
     let s3BidUrl = originalBidUrl;
     if (originalBidUrl && originalBidUrl.startsWith('http')) {
       const safeBidNumber = bid.bidNumber.replace(/\//g, '_');

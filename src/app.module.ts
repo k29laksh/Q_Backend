@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule'; // <-- Added ScheduleModule
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -19,12 +20,15 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { ProfileModule } from './profile/customer-profile.module';
 import { DocumentsModule } from './documents/documents.module';
 import { TenderResultsModule } from './tender-results/tender-results.module';
+import { ScrapingModule } from './scraping/scraping.module';
+import { HsnGenerationModule } from './hsn-generation/hsn-generation.module'; // <-- Added HsnGenerationModule
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(), // <-- Crucial: Initializes the Cron job scheduler
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST,
@@ -51,6 +55,8 @@ import { TenderResultsModule } from './tender-results/tender-results.module';
     DocumentsModule,
     RabbitmqModule,
     TenderResultsModule,
+    ScrapingModule,
+    HsnGenerationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
