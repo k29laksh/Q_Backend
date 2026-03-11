@@ -113,17 +113,30 @@ export class AwsS3Service implements OnModuleInit {
     }
   }
 
+  // aws-s3.service.ts
+
   private downloadAsBuffer(url: string): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const client = url.startsWith('https') ? https : http;
       const req = client.get(
         url,
         {
+          // --- OPTION 1: EXPANDED "HUMAN" HEADERS ADDED HERE ---
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Accept: 'application/pdf,*/*',
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/pdf',
+            'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
+            Referer: 'https://bidplus.gem.gov.in/',
+            Connection: 'keep-alive',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
           },
+          // ---------------------------------------------------
           timeout: 60_000,
         },
         (res) => {
@@ -140,11 +153,7 @@ export class AwsS3Service implements OnModuleInit {
           }
 
           if (res.statusCode && res.statusCode >= 400) {
-            reject(
-              new Error(
-                `HTTP ${res.statusCode} downloading ${url}`,
-              ),
-            );
+            reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));
             return;
           }
 
