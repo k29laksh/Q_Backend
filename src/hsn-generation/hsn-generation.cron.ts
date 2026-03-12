@@ -13,6 +13,8 @@ export class HsnGenerationCron {
   async handleCron() {
     try {
       this.logger.log('Cron triggered: Checking for PENDING bids...');
+      // 1. Run the Sweeper first to recover any crashed/stuck bids
+      await this.hsnService.recoverStuckBids();
       await this.hsnService.dispatchPendingBids();
     } catch (error) {
       this.logger.error(`HSN Cron Job Failed: ${error.message}`, error.stack);

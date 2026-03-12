@@ -21,6 +21,30 @@ export class HsnGenerationService {
    * Fetches PENDING bids using Cursor Pagination, marks them PROCESSING,
    * and sends them to RabbitMQ for FastAPI to process.
    */
+  async recoverStuckBids(): Promise<void> {
+    // Calculate the time 30 minutes ago
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    try {
+      const result = await this.bidDataRepo.update(
+        {
+          hsnStatus: HsnStatus.PROCESSING,
+          updatedAt: LessThan(thirtyMinutesAgo), // Assumes your BaseEntity has @UpdateDateColumn() updatedAt
+        },
+        {
+          hsnStatus: HsnStatus.PENDING,
+        },
+      );
+
+      if (result.affected > 0) {
+        this.logger.warn(
+          `🧹 Sweeper: Recovered ${result.affected} stuck PROCESSING bids back to PENDING.`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Failed to run stuck bid sweeper: ${error.message}`);
+    }
+  }
   async dispatchPendingBids(): Promise<void> {
     this.logger.log('Starting HSN cursor-based dispatch job...');
 
