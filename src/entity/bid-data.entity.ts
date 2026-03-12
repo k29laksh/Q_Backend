@@ -1,7 +1,20 @@
-import { Entity, Column, Index } from 'typeorm';
-import { BaseEntity } from './base.entity';
+import { Entity, Column, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { BaseEntity } from './base.entity'; // Adjust path if needed
+
+// Enum to track the AI processing pipeline state
+export enum HsnStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+}
+
 @Entity('qp_bid_data')
+// MANAGER'S TIP: Composite index for blazing fast cursor pagination
+@Index('idx_bid_hsn_status', ['hsnStatus', 'id'])
 export class GemBidData extends BaseEntity {
+  // Assuming BaseEntity doesn't already define id, otherwise remove this line
+  @PrimaryGeneratedColumn()
   @Index({ unique: true })
   @Column({ type: 'varchar' })
   bidNumber: string;
@@ -38,4 +51,12 @@ export class GemBidData extends BaseEntity {
 
   @Column({ type: 'boolean', nullable: true, default: true })
   isActive: boolean;
+
+  // New column for tracking HSN generation status
+  @Column({
+    type: 'enum',
+    enum: HsnStatus,
+    default: HsnStatus.PENDING,
+  })
+  hsnStatus: HsnStatus;
 }

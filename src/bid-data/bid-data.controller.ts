@@ -51,17 +51,21 @@ export class BidDataController {
     private readonly companyDocumentRepo: Repository<CompanyDocument>,
     @InjectRepository(GemBidData)
     private readonly bidDataRepo: Repository<GemBidData>,
-  ) { }
+  ) {}
 
   @Get('tenders')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get all tenders (paginated)',
-    description: 'Returns all active tenders from the database with pagination. No matching logic — raw full list.',
+    description:
+      'Returns all active tenders from the database with pagination. No matching logic — raw full list.',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
-  @ApiResponse({ status: 200, description: 'All tenders returned successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'All tenders returned successfully.',
+  })
   async getAllTenders(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -146,23 +150,26 @@ export class BidDataController {
     // 5. Download the bid document from GeM portal and re-upload to S3
     //    so that the Python AI service can reliably access it.
     //    (GeM gov portal blocks direct server-to-server downloads)
-    const originalBidUrl = bid.bidUrl || '';
+    let originalBidUrl = bid.bidUrl || '';
+
+    // Fix malformed GeM URLs (missing "/" before path)
+    originalBidUrl = originalBidUrl.replace(
+      /gem\.gov\.in(?!\/)/,
+      'gem.gov.in/',
+    );
+
     let s3BidUrl = originalBidUrl;
     if (originalBidUrl && originalBidUrl.startsWith('http')) {
       const safeBidNumber = bid.bidNumber.replace(/\//g, '_');
-      this.logger.log(
-        `Proxying bid document to S3 for ${bid.bidNumber}: ${originalBidUrl}`,
-      );
+      this.logger.log(`Proxying bid document to S3 for ${bid.bidNumber}`);
       try {
         const { url } = await this.awsS3Service.downloadAndUploadToS3(
-          originalBidUrl,
+          bid.bidNumber, // <--- CHANGED THIS TO USE bidNumber
           `bid-documents/${safeBidNumber}`,
           `${safeBidNumber}.pdf`,
         );
         s3BidUrl = url;
-        this.logger.log(
-          `Bid document proxied to S3: ${url}`,
-        );
+        this.logger.log(`Bid document proxied to S3: ${url}`);
       } catch (err) {
         this.logger.error(
           `Failed to proxy bid document to S3 for ${bid.bidNumber}`,
