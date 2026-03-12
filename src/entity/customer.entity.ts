@@ -3,11 +3,14 @@ import {
   CreateDateColumn,
   Entity,
   OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Company } from './company.entity';
 import { CustomerHsn } from './customer-hsn-codes.entity';
+import { DashboardKpi } from './dashboard-kpi.entity';
+import { TenderActivity } from './tender-activity.entity';
 
 @Entity('customers')
 export class Customer {
@@ -39,6 +42,12 @@ export class Customer {
   // Moved HSN codes to Customer as requested
   @OneToMany(() => CustomerHsn, (hsn) => hsn.customer, { cascade: true })
   hsnCodes: CustomerHsn[];
+
+  @OneToOne(() => DashboardKpi, (kpi) => kpi.customer)
+  dashboardKpi: DashboardKpi;
+
+  @OneToMany(() => TenderActivity, (activity) => activity.customer)
+  tenderActivities: TenderActivity[];
 
   @CreateDateColumn()
   createdAt: Date;

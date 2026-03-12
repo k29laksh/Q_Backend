@@ -6,7 +6,7 @@ import { BidPlusGemPortalMinistryMaster } from '../entity/bid-plus-gem-portal-mi
 import { BidPlusGemPortalOrganizationMaster } from '../entity/bid-plus-gem-portal-organization-master.entity';
 import { GemBidData } from '../entity/bid-data.entity';
 import 'dotenv/config';
-
+import { faker } from '@faker-js/faker';
 interface CsvRow {
   [key: string]: string;
 }
@@ -22,6 +22,7 @@ const dataSource = new DataSource({
     BidPlusGemPortalMinistryMaster,
     BidPlusGemPortalOrganizationMaster,
     GemBidData,
+   
   ],
   synchronize: true,
 });
@@ -162,6 +163,8 @@ async function seed() {
   }
 
   console.log(`Seeded ${bidCount} bid data records.`);
+
+
 
   await dataSource.destroy();
   console.log('Seed complete. Connection closed.');

@@ -15,9 +15,13 @@ import { GemBidData } from './entity/bid-data.entity';
 import { BidPlusGemPortalMinistryMaster } from './entity/bid-plus-gem-portal-ministry-master.entity';
 import { BidPlusGemPortalOrganizationMaster } from './entity/bid-plus-gem-portal-organization-master.entity';
 import { BidDataModule } from './bid-data/bid-data.module';
-import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+// import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { ProfileModule } from './profile/customer-profile.module';
 import { DocumentsModule } from './documents/documents.module';
+import { DashboardKpi } from './entity/dashboard-kpi.entity';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { TenderActivity } from './entity/tender-activity.entity';
+import { UserBidInteraction } from './entity/user-bid-interaction.entity';
 
 @Module({
   imports: [
@@ -41,6 +45,9 @@ import { DocumentsModule } from './documents/documents.module';
         GemBidData,
         BidPlusGemPortalMinistryMaster,
         BidPlusGemPortalOrganizationMaster,
+        DashboardKpi,
+        TenderActivity,
+        UserBidInteraction,
       ],
       synchronize: true, // Set to false in production!
     }),
@@ -48,9 +55,10 @@ import { DocumentsModule } from './documents/documents.module';
     BidDataModule,
     ProfileModule,
     DocumentsModule,
-    RabbitmqModule,
+    // RabbitmqModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
