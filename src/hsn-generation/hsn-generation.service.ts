@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, MoreThan } from 'typeorm';
+import { Repository, In, MoreThan, LessThan } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { GemBidData, HsnStatus } from '../entity/bid-data.entity'; // Adjust path
 
@@ -36,7 +36,7 @@ export class HsnGenerationService {
         },
       );
 
-      if (result.affected > 0) {
+      if ((result.affected ?? 0) > 0) {
         this.logger.warn(
           `🧹 Sweeper: Recovered ${result.affected} stuck PROCESSING bids back to PENDING.`,
         );
