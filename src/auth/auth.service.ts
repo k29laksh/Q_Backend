@@ -260,7 +260,7 @@ export class AuthService {
     });
     await this.otpRepository.save(otpRecord);
 
-    // Send email via Mailtrap sandbox
+    // Send OTP email
     await this.emailService.sendOtpEmail(dto.email, otp);
 
     return { message: 'OTP sent to your email' };

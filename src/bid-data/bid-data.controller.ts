@@ -10,6 +10,7 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -26,6 +27,7 @@ import {
 } from './bid-data.service';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { RabbitmqService } from '../rabbitmq/rabbitmq.service';
+import { AwsS3Service } from '../aws-s3/aws-s3.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entity/company.entity';
@@ -37,26 +39,33 @@ import { GemBidData } from '../entity/bid-data.entity';
 @UseGuards(AccessTokenGuard)
 @ApiBearerAuth()
 export class BidDataController {
+  private readonly logger = new Logger(BidDataController.name);
+
   constructor(
     private readonly bidDataService: BidDataService,
     private readonly rabbitmqService: RabbitmqService,
+    private readonly awsS3Service: AwsS3Service,
     @InjectRepository(Company)
     private readonly companyRepo: Repository<Company>,
     @InjectRepository(CompanyDocument)
     private readonly companyDocumentRepo: Repository<CompanyDocument>,
     @InjectRepository(GemBidData)
     private readonly bidDataRepo: Repository<GemBidData>,
-  ) { }
+  ) {}
 
   @Get('tenders')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get all tenders (paginated)',
-    description: 'Returns all active tenders from the database with pagination. No matching logic — raw full list.',
+    description:
+      'Returns all active tenders from the database with pagination. No matching logic — raw full list.',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
-  @ApiResponse({ status: 200, description: 'All tenders returned successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'All tenders returned successfully.',
+  })
   async getAllTenders(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -138,9 +147,40 @@ export class BidDataController {
       hsn: bid.hsn,
     };
 
-    // 5. Publish to RabbitMQ (fire-and-forget — client uses SSE to get results)
+    // 5. Download the bid document from GeM portal and re-upload to S3
+    //    so that the Python AI service can reliably access it.
+    //    (GeM gov portal blocks direct server-to-server downloads)
+    let originalBidUrl = bid.bidUrl || '';
+
+    // Fix malformed GeM URLs (missing "/" before path)
+    originalBidUrl = originalBidUrl.replace(
+      /gem\.gov\.in(?!\/)/,
+      'gem.gov.in/',
+    );
+
+    let s3BidUrl = originalBidUrl;
+    if (originalBidUrl && originalBidUrl.startsWith('http')) {
+      const safeBidNumber = bid.bidNumber.replace(/\//g, '_');
+      this.logger.log(`Proxying bid document to S3 for ${bid.bidNumber}`);
+      try {
+        const { url } = await this.awsS3Service.downloadAndUploadToS3(
+          bid.bidNumber, // <--- CHANGED THIS TO USE bidNumber
+          `bid-documents/${safeBidNumber}`,
+          `${safeBidNumber}.pdf`,
+        );
+        s3BidUrl = url;
+        this.logger.log(`Bid document proxied to S3: ${url}`);
+      } catch (err) {
+        this.logger.error(
+          `Failed to proxy bid document to S3 for ${bid.bidNumber}`,
+          err instanceof Error ? err.stack : err,
+        );
+      }
+    }
+
+    // 6. Publish to RabbitMQ (fire-and-forget — client uses SSE to get results)
     await this.rabbitmqService.publishTenderApply({
-      bidUrl: bid.bidUrl || '',
+      bidUrl: s3BidUrl,
       bidNumber: bid.bidNumber,
       bidDetails,
       companyDocuments,
@@ -149,7 +189,7 @@ export class BidDataController {
     return {
       status: 'processing',
       bidNumber: bid.bidNumber,
-      bidUrl: bid.bidUrl,
+      bidUrl: s3BidUrl,
       documentsIncluded: companyDocuments.length,
     };
   }
