@@ -20,7 +20,8 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { ProfileModule } from './profile/customer-profile.module';
 import { DocumentsModule } from './documents/documents.module';
 import { TenderResultsModule } from './tender-results/tender-results.module';
-
+import {ScrapingModule} from './scraping/scraping.module';
+import { HsnGenerationModule }from './hsn-generation/hsn-generation.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
