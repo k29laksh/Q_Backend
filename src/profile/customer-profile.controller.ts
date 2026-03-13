@@ -3,6 +3,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   Param,
   HttpCode,
@@ -16,6 +17,7 @@ import { CustomerProfileService } from './customer-profile.service';
 import {
   CreateMultipleCompaniesDto,
   SaveHsnSetupDto,
+  UpdateProfileDto,
 } from '../dtos/profile.dto';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 
@@ -53,6 +55,14 @@ export class CustomerProfileController {
   async getProfile(@Req() req: any) {
     const customerId = req.user.userId;
     return this.profileService.getCustomerProfile(customerId);
+  }
+
+  @Patch('customer')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update customer profile and company info' })
+  async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
+    const customerId = req.user.userId;
+    return this.profileService.updateProfile(customerId, dto);
   }
 
   @Get('company/:companyId')

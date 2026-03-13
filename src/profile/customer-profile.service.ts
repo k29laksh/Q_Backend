@@ -12,6 +12,7 @@ import { CustomerHsn } from '../entity/customer-hsn-codes.entity';
 import {
   CreateMultipleCompaniesDto,
   SaveHsnSetupDto,
+  UpdateProfileDto,
 } from '../dtos/profile.dto';
 
 @Injectable()
@@ -164,6 +165,30 @@ export class CustomerProfileService {
 
     return profile;
   }
+
+  // Update customer profile fields and first company info
+  async updateProfile(customerId: string, dto: UpdateProfileDto) {
+    const customer = await this.customerRepo.findOne({
+      where: { id: customerId },
+      relations: ['companies'],
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    if (dto.fullName !== undefined) customer.fullName = dto.fullName;
+    if (dto.mobile !== undefined) customer.mobile = dto.mobile;
+    await this.customerRepo.save(customer);
+
+    const company = customer.companies?.[0];
+    if (company) {
+      if (dto.companyLegalName !== undefined) company.legalName = dto.companyLegalName;
+      if (dto.companyAddress !== undefined) company.address = dto.companyAddress;
+      if (dto.establishmentYear !== undefined) company.establishmentYear = dto.establishmentYear;
+      await this.companyRepo.save(company);
+    }
+
+    return this.getCustomerProfile(customerId);
+  }
+
   // 4. Make an API to get company details (fetching document relations)
   async getCompanyDetails(companyId: string) {
     const company = await this.companyRepo.findOne({

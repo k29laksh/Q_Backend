@@ -19,6 +19,7 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { ProfileModule } from './profile/customer-profile.module';
 import { DocumentsModule } from './documents/documents.module';
 import { TenderResultsModule } from './tender-results/tender-results.module';
+import { GstProxyModule } from './gst-proxy/gst-proxy.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { TenderResultsModule } from './tender-results/tender-results.module';
     DocumentsModule,
     RabbitmqModule,
     TenderResultsModule,
+    GstProxyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

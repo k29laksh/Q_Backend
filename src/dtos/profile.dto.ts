@@ -41,3 +41,11 @@ export class SaveHsnSetupDto {
   @IsBoolean() @IsOptional() emailAlerts?: boolean;
   @IsBoolean() @IsOptional() whatsappAlerts?: boolean;
 }
+
+export class UpdateProfileDto {
+  @IsString() @IsOptional() fullName?: string;
+  @IsString() @IsOptional() mobile?: string;
+  @IsString() @IsOptional() companyLegalName?: string;
+  @IsString() @IsOptional() companyAddress?: string;
+  @IsString() @IsOptional() establishmentYear?: string;
+}
